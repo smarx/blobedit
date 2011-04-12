@@ -1,0 +1,175 @@
+<!doctype html>
+<html>
+<head>
+    <title>BlobEdit</title>
+    <script type="text/javascript" src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.4.4.min.js"></script>
+    <script type="text/javascript" src="http://ajax.aspnetcdn.com/ajax/jquery.ui/1.8.7/jquery-ui.min.js"></script>
+    <script src="/static/jstree/jquery.jstree.js" type="text/javascript"></script>
+    <script src="/static/ace/ace.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/static/ace/theme-twilight.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/static/ace/mode-javascript.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/static/ace/mode-python.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/static/ace/mode-ruby.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/static/ace/mode-css.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/static/ace/mode-coffee.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/static/ace/mode-html.js" type="text/javascript" charset="utf-8"></script>
+    <style type="text/css">
+        html, body { margin: 0; padding: 0; overflow: hidden; font-family: Arial; }
+        #blobtree {
+            margin-top: 25px;
+            width: 250px;
+            height: 100%;
+            overflow: auto;
+        }
+        #editor { 
+            position: absolute;
+            left: 250px;
+            top: 25px;
+            bottom: 30px;
+            right: 0;
+            margin: 0;
+            font-size: 18pt;
+        }
+        #title {
+            margin: 0;
+            padding: 0;
+            position: absolute;
+            top: 5px;
+            left: 250px;
+        }
+        #top {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 10pt;
+        }
+        #bottom {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+        }
+        #bottomleft {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="top">{{escape(account_name)}}/{{escape(container_name)}} | <a href="/logout">Logout</a></div>
+<div id="blobtree"></div>
+
+<p id="title"></p>
+<pre id="editor"></pre>
+
+<div id="bottomleft"><button id="collapseButton">Collapse</button></div>
+<div id="bottom"><button id="saveButton">Save</button></div>
+
+<script type="text/javascript">
+    var files = {{json_encode(blobs)}};
+
+    var tree = [];
+
+    while (files.length > 0) {
+        var orig = files.pop();
+        var file = orig;
+        var slashIndex = file.indexOf('/');
+        var parent = tree;
+        while (slashIndex >= 0) {
+            var prefix = file.substring(0, slashIndex);
+            var rest = file.substring(slashIndex + 1);
+
+            var found = false;
+            for (var i = 0; i < parent.length; i++) {
+                if (parent[i].data == prefix) {
+                    parent = parent[i].children;
+                    found = true;
+                }
+            }
+
+            if (!found) {
+                var directory = { "data": prefix, children: [] };
+                parent.push(directory);
+                parent = directory.children;
+            }
+
+            file = rest;
+            slashIndex = rest.indexOf('/');
+        }
+
+        parent.push({ "data": file, "attr": { "id": orig} });
+    }
+
+    var name;
+    var editor = ace.edit("editor");
+    editor.setTheme("ace/theme/twilight");
+    editor.setShowPrintMargin(false);
+    
+    var JavaScriptMode = require("ace/mode/javascript").Mode;
+    var PythonMode = require("ace/mode/python").Mode;
+    var RubyMode = require("ace/mode/ruby").Mode;
+    var CssMode = require("ace/mode/css").Mode;
+    var CoffeeMode = require("ace/mode/coffee").Mode;
+    var HtmlMode = require("ace/mode/html").Mode;
+
+    editor.getSession().setMode(new JavaScriptMode());
+    
+    $(function () {
+        $('#saveButton').click(function() {
+            $.post('/blob/' + name, editor.getSession().getDocument().getValue(),
+                function(data) {
+                    alert("Saved.");
+                });
+        });
+        var collapsed = false;
+        $('#collapseButton').click(function() {
+            if (collapsed) {
+                $('#editor').animate({'left': '250px', 'width': ($('#editor').width()-250) + 'px'});
+                $('#editor .ace_scroller').animate({'width': ($('#editor .ace_scroller').width()-250)+'px'});
+                $('#editor .ace_content').animate({'width': ($('#editor .ace_content').width()-250)+'px'});
+            } else {
+                $('#editor').animate({'left': '0px', 'width': ($('#editor').width()+250) + 'px'});
+                $('#editor .ace_scroller').animate({'width': ($('#editor .ace_scroller').width()+250)+'px'});
+                $('#editor .ace_content').animate({'width': ($('#editor .ace_content').width()+250)+'px'});
+            }
+            collapsed = !collapsed;
+        });
+        $('#blobtree').jstree({
+            "core": { "animation": 100 },
+            "plugins": ["themes", "json_data", "ui", "sort"],
+            "themes": { "dots": false, "theme": "classic" },
+            "ui": { "select_limit": 1},
+            "json_data": {"data": tree},
+            "sort": function(a, b) {
+                if (this._get_children(a).length > 0 && this._get_children(b).length == 0) return -1;
+                if (this._get_children(b).length > 0 && this._get_children(a).length == 0) return 1;
+                if (this.get_text(a).toLowerCase() < this.get_text(b).toLowerCase()) return -1;
+                if (this.get_text(a).toLowerCase() > this.get_text(b).toLowerCase()) return 1;
+                return 0;
+            }
+        });
+        $('#blobtree').bind('select_node.jstree', function (event, data) {
+            var selected = $.jstree._focused().get_selected()[0];
+            if ($.jstree._focused()._get_children(selected).length > 0) return;
+            name = $(selected).attr('id');
+            var extension = '';
+            var i = name.lastIndexOf('.');
+            if (i >= 0) extension = name.substring(i+1);
+            if (extension == 'py') editor.getSession().setMode(new PythonMode());
+            else if (extension == 'rb') editor.getSession().setMode(new RubyMode());
+            else if (extension == 'css') editor.getSession().setMode(new CssMode());
+            else if (extension == 'coffee') editor.getSession().setMode(new CoffeeMode());
+            else if (extension == 'html') editor.getSession().setMode(new HtmlMode());
+            else editor.getSession().setMode(new JavaScriptMode());
+            $.get('/blob/' + name,
+                function(data) {
+                    editor.getSession().getDocument().setValue(data);
+                    editor.moveCursorTo(0,0);
+                    $('#title').text(name);
+                });
+        });
+    });
+</script>
+</body>
+</html>

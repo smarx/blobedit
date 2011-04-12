@@ -1,0 +1,32 @@
+<!doctype html>
+
+<html>
+<head>
+<title>BlobEdit - Log In</title>
+<style type="text/css">
+    html { font-family: Arial; font-size: 12pt; }
+    label { color: #666; }
+    input { font-size: 14pt; width: 15em; }
+    input:focus { background-color: #fffff0; }
+    button { float: right; font-size: 14pt; }
+    fieldset { padding: 10px; width: 20em; }
+</style>
+</head>
+<body>
+<form method="post">
+    <fieldset>
+        <legend>Log In</legend>
+        <label for="AccountName">Storage account</label><br />
+        <input name="AccountName" type="text" /><br />
+        <label for="AccountKey">Storage key</label><br />
+        <input name="AccountKey" type="text" /><br />
+        <label for="ContainerName">Container name</label><br />
+        <input name="ContainerName" type="text" /><br />
+        <br />
+        <button type="submit">Log in</button>
+    </fieldset>
+</form>
+
+<p><b>NOTE</b>: Your account credentials are kept in a local cookie (not stored on the server), but they're transmitted in plain text on each HTTP request, so they're vulnerable. I can't really advise anyone to use this without then rotating their keys. Be careful!</p>
+</body>
+</html>
